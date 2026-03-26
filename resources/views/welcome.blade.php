@@ -29,7 +29,7 @@
 </head>
 <body>
     <div class="text-{{ $size ?? 'md' }}">{{ $text ?? '' }}</div>
-    <img src="dka.png" style="max-width:200px">
+    <img src="storage/dka.png" style="max-width:200px">
     <div class="text-lg">
         Domain Key Authority
     </div>
@@ -42,8 +42,11 @@
         @endif
     </div>
     <br>
-        <div class="text-sm">
-        This is small text
+    <div class="text-sm">
+        The corresponding domain's DKA designation: {{ dns_text() ? trim(dns_text()) : 'NULL' }}
+    </div>
+    <div class="text-md">
+        This designation is {{ dns_designation_correct() ? 'CORRECT' : 'INCORRECT'}}
     </div>
 
 </body>

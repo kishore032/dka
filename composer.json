@@ -28,7 +28,8 @@
             "Database\\Seeders\\": "database/seeders/"
         },
         "files": [
-            "app/Helpers/eparse.php"
+            "app/Helpers/eparse.php",
+            "app/Helpers/dns.php"
         ]
     },
     "autoload-dev": {

@@ -1,6 +1,8 @@
 <?php
 
 return [
+
+    'rdka'          => env('rdka', 'dka.keyzero.org'),
     /*
     |--------------------------------------------------------------------------
     | DKA Identity
@@ -10,6 +12,7 @@ return [
     'terse'         => env('DKA_TERSE', 'no-reply'),
     'domain'        => env('DKA_DOMAIN', 'dka.example.com'),
     'target_domain' => env('DKA_TARGET_DOMAIN', '*'),
+    'dns_canonical'    => env('DNS_CANONICAL'),
 
     /*
     |--------------------------------------------------------------------------
