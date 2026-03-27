@@ -38,17 +38,21 @@
         @if(config('dka.target_domain')=='*')
             This website is configured locally to be the root DKA (rDKA).
         @else
-            This website is configured locally to be the DKA of {{ config('dka.target_domain') }}.
+            This website is configured locally to be the DKA of domain {{ config('dka.target_domain') }}.
         @endif
     </div>
-    <br>
     <div class="text-sm">
-        The corresponding domain's DKA designation: {{ dns_text() ? trim(dns_text()) : 'NULL' }}
+        The domain's DNS designation for the DKA is {{ dns_text() }}
     </div>
     <div class="text-md">
-        {{-- This designation is {{ dns_designation_correct() ? 'CORRECT' : 'INCORRECT'}} --}}
         This website operates at {{ $_SERVER['HTTP_HOST']  }}
     </div>
+    <br>
+    <div class="text-md">
+        {{ dns_designation() == $_SERVER['HTTP_HOST'] ? 'This configuration appears to be correct' :
+            'This configuration is incorrect' }}
+    </div>
+
 
 </body>
 </html>
