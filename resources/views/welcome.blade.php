@@ -36,9 +36,9 @@
     <br>
     <div class="text-md">
         @if(config('dka.target_domain')=='*')
-            This website is designated locally as the root DKA (rDKA).
+            This website is configured locally to be the root DKA (rDKA).
         @else
-            This website is desinated locally as the DKA of {{ config('dka.target_domain') }}.
+            This website is configured locally to be the DKA of {{ config('dka.target_domain') }}.
         @endif
     </div>
     <br>
@@ -46,7 +46,7 @@
         The corresponding domain's DKA designation: {{ dns_text() ? trim(dns_text()) : 'NULL' }}
     </div>
     <div class="text-md">
-        This designation is {{ dns_designation_correct() ? 'CORRECT' : 'INCORRECT'}}
+        {{-- This designation is {{ dns_designation_correct() ? 'CORRECT' : 'INCORRECT'}} --}}
     </div>
 
 </body>
