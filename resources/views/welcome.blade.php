@@ -47,6 +47,7 @@
     </div>
     <div class="text-md">
         {{-- This designation is {{ dns_designation_correct() ? 'CORRECT' : 'INCORRECT'}} --}}
+        This website operates at {{ $_SERVER['HTTP_HOST']  }}
     </div>
 
 </body>
