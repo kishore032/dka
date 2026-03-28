@@ -53,7 +53,7 @@ class RawmailControllerTest extends TestCase
             'dka.username'       => 'dka',
             'dka.terse'          => 'no-reply',
             'dka.domain'         => 'dka.example.com',
-            'dka.target_domain'  => '*',
+            'dka.mail_domain'    => '*',
             'dka.token_ttl'      => 900,
             'dka.mg_signing_key' => $this->mgSigningKey,
         ]);
@@ -160,7 +160,7 @@ class RawmailControllerTest extends TestCase
     #[Test]
     public function it_returns_403_for_domain_mismatch_in_domain_dka_mode(): void
     {
-        config(['dka.target_domain' => 'allowed.com']);
+        config(['dka.mail_domain' => 'allowed.com']);
         $this->assertEquals(403, $this->controller->receive($this->makePost(['From' => 'x@other.com']), true)->getStatusCode());
     }
 
@@ -198,6 +198,7 @@ class RawmailControllerTest extends TestCase
     #[Test]
     public function step1_sends_dkim_error_email_and_no_token_when_dkim_fails_verbose(): void
     {
+        config(['dka.DKIM_required' => true]);
         $this->controller->receive($this->makePost(['X-Mailgun-Dkim-Check-Result' => 'Fail']), true);
 
         $this->assertFalse($this->tokens->exists($this->senderEmail));
@@ -207,6 +208,7 @@ class RawmailControllerTest extends TestCase
     #[Test]
     public function step1_sends_nothing_when_dkim_fails_terse(): void
     {
+        config(['dka.DKIM_required' => true]);
         $post = $this->makePost([
             'recipient'                   => 'no-reply@dka.example.com',
             'X-Mailgun-Dkim-Check-Result' => 'Fail',
@@ -219,15 +221,15 @@ class RawmailControllerTest extends TestCase
     }
 
     #[Test]
-    public function step1_silently_ignores_when_token_already_exists(): void
+    public function step1_resends_same_token_when_token_already_exists(): void
     {
         $existing = $this->issueToken();
 
         $this->controller->receive($this->makePost(), true);
 
-        // Original token unchanged
+        // Original token unchanged, but re-sent
         $this->assertEquals($existing, $this->tokens->get($this->senderEmail)['token']);
-        Mail::assertNothingSent();
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Token'));
     }
 
     #[Test]

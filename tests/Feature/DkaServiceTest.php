@@ -89,6 +89,7 @@ class DkaServiceTest extends TestCase
     #[Test]
     public function challenge_sends_dkim_error_when_dkim_fails_verbose(): void
     {
+        config(['dka.DKIM_required' => true]);
         $this->dka->handleEmailChallenge($this->email, 'fail', true, $this->fromAddress);
 
         Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'DKIM'));
@@ -98,6 +99,7 @@ class DkaServiceTest extends TestCase
     #[Test]
     public function challenge_sends_nothing_when_dkim_fails_terse(): void
     {
+        config(['dka.DKIM_required' => true]);
         $this->dka->handleEmailChallenge($this->email, 'fail', false, $this->fromAddress);
 
         Mail::assertNothingSent();
@@ -131,14 +133,14 @@ class DkaServiceTest extends TestCase
     }
 
     #[Test]
-    public function challenge_silently_ignores_when_token_already_exists(): void
+    public function challenge_resends_same_token_when_token_already_exists(): void
     {
         $existing = $this->issueToken();
 
         $this->dka->handleEmailChallenge($this->email, 'pass', true, $this->fromAddress);
 
         $this->assertEquals($existing, $this->tokens->get($this->email)['token']);
-        Mail::assertNothingSent();
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Token'));
     }
 
     // =========================================================================

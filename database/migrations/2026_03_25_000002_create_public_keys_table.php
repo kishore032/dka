@@ -14,6 +14,7 @@ return new class extends Migration
             $table->text('selector');
             $table->text('public_key')->nullable();
             $table->text('metadata')->nullable();
+            $table->text('verification_methods')->nullable();
             $table->integer('version')->default(1);
             $table->timestamps();
 

@@ -28,11 +28,11 @@ class LookupControllerTest extends TestCase
         parent::setUp();
 
         config([
-            'dka.username'      => 'dka',
-            'dka.terse'         => 'no-reply',
-            'dka.domain'        => 'dka.example.com',
-            'dka.target_domain' => '*',
-            'dka.version'       => 1,
+            'dka.username'    => 'dka',
+            'dka.terse'       => 'no-reply',
+            'dka.domain'      => 'dka.example.com',
+            'dka.mail_domain' => '*',
+            'dka.version'     => 1,
         ]);
     }
 
@@ -159,7 +159,7 @@ class LookupControllerTest extends TestCase
     #[Test]
     public function lookup_returns_403_for_email_outside_target_domain_in_dka_mode(): void
     {
-        config(['dka.target_domain' => 'allowed.com']);
+        config(['dka.mail_domain' => 'allowed.com']);
 
         $this->getJson('/api/v1/lookup?email=alice@other.com')
             ->assertStatus(403)
@@ -169,7 +169,7 @@ class LookupControllerTest extends TestCase
     #[Test]
     public function lookup_allows_any_domain_in_rdka_mode(): void
     {
-        config(['dka.target_domain' => '*']);
+        config(['dka.mail_domain' => '*']);
         $this->storeKey('alice@any-domain.io', 'default');
 
         $this->getJson('/api/v1/lookup?email=alice@any-domain.io')
@@ -241,7 +241,7 @@ class LookupControllerTest extends TestCase
     #[Test]
     public function selectors_returns_403_for_email_outside_target_domain_in_dka_mode(): void
     {
-        config(['dka.target_domain' => 'allowed.com']);
+        config(['dka.mail_domain' => 'allowed.com']);
 
         $this->getJson('/api/v1/selectors?email=alice@other.com')
             ->assertStatus(403);
@@ -254,7 +254,7 @@ class LookupControllerTest extends TestCase
     #[Test]
     public function version_returns_rdka_mode_when_target_domain_is_wildcard(): void
     {
-        config(['dka.target_domain' => '*', 'dka.version' => 1, 'dka.domain' => 'dka.example.com']);
+        config(['dka.mail_domain' => '*', 'dka.version' => 1, 'dka.domain' => 'dka.example.com']);
 
         $this->getJson('/api/v1/version')
             ->assertStatus(200)
@@ -268,7 +268,7 @@ class LookupControllerTest extends TestCase
     #[Test]
     public function version_returns_dka_mode_when_target_domain_is_set(): void
     {
-        config(['dka.target_domain' => 'example.com', 'dka.version' => 1, 'dka.domain' => 'dka.example.com']);
+        config(['dka.mail_domain' => 'example.com', 'dka.version' => 1, 'dka.domain' => 'dka.example.com']);
 
         $this->getJson('/api/v1/version')
             ->assertStatus(200)

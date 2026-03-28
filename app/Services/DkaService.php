@@ -33,7 +33,7 @@ class DkaService
         bool   $verbose,
         string $fromAddress
     ): void {
-        if (strtolower($dkimResult) !== 'pass') {
+        if (config('dka.DKIM_required') && strtolower($dkimResult) !== 'pass') {
             if ($verbose) {
                 $this->sendEmail(
                     $emailId,
@@ -46,8 +46,23 @@ class DkaService
             return;
         }
 
-        // Silently ignore if a token already exists (avoids token-spam)
-        if ($this->tokens->exists($emailId)) {
+        // If a token already exists, resend it with the remaining TTL
+        $existing = $this->tokens->get($emailId);
+        if ($existing) {
+            $token = $existing['token'];
+            $ttl   = $this->tokens->ttl($emailId) ?? config('dka.token_ttl');
+
+            $body = "Your DKA verification token:\n\n"
+                . "  {$token}\n\n"
+                . "This token expires in {$ttl} seconds.\n\n"
+                . "To register a public key, reply with:\n"
+                . "  Subject: register\n"
+                . "  Body (JSON): {\"token\": \"<token>\", \"public_key\": \"<base64>\", \"selector\": \"<optional>\", \"metadata\": {}}\n\n"
+                . "To delete a key, reply with:\n"
+                . "  Subject: delete [selector]\n"
+                . "  Body (JSON): {\"token\": \"<token>\"}\n";
+
+            $this->sendEmail($emailId, 'DKA: Your Verification Token', $body, $fromAddress);
             return;
         }
 
@@ -131,6 +146,8 @@ class DkaService
                 'public_key' => $publicKey,
                 'metadata'   => $metaJson,
                 'version'    => $newVersion,
+                'verification_methods' => config('dka.DKIM_required') ? json_encode(['mailbox-control', 'dkim-pass']) :
+                    json_encode(['mailbox-control'])
             ]);
             $message = "Selector '{$selector}' updated (version {$newVersion}).";
         } else {
@@ -140,6 +157,8 @@ class DkaService
                 'public_key' => $publicKey,
                 'metadata'   => $metaJson,
                 'version'    => 1,
+                'verification_methods' => config('dka.DKIM_required') ? json_encode(['mailbox-control', 'dkim-pass']) :
+                    json_encode(['mailbox-control'])
             ]);
             $message = "Selector '{$selector}' registered.";
         }

@@ -35,6 +35,7 @@ class LookupController extends Controller
             'email_id'   => $row->email_id,
             'selector'   => $row->selector,
             'public_key' => $row->public_key,
+            'verification_methods' => json_decode($row->verification_methods ?? '[]'),
             'metadata'   => json_decode($row->metadata ?? '{}'),
             'version'    => $row->version,
             'updated_at' => $row->updated_at?->toIso8601String(),
@@ -79,8 +80,8 @@ class LookupController extends Controller
 
     public function version(): JsonResponse
     {
-        $targetDomain = config('dka.target_domain');
-        $mode         = ($targetDomain === '*') ? 'rdka' : 'dka';
+        $mailDomain = config('dka.mail_domain');
+        $mode         = ($mailDomain === '*') ? 'rdka' : 'dka';
 
         return response()->json([
             'dka_version' => config('dka.version'),
@@ -110,18 +111,18 @@ class LookupController extends Controller
     // -------------------------------------------------------------------------
 
     /**
-     * In Domain DKA mode, reject lookups for email addresses outside the target domain.
+     * In Domain DKA mode, reject lookups for email addresses outside the mail domain.
      * Returns a JsonResponse on failure, or null if the check passes.
      */
     private function checkEmailDomain(string $email): ?JsonResponse
     {
-        $targetDomain = config('dka.target_domain');
-        if ($targetDomain === '*') {
+        $mailDomain = config('dka.mail_domain');
+        if ($mailDomain === '*') {
             return null;
         }
 
         $parsed = eparse($email);
-        if (!$parsed || $parsed->domain !== $targetDomain) {
+        if (!$parsed || $parsed->domain !== $mailDomain) {
             return response()->json(['error' => 'This DKA does not serve that domain'], 403);
         }
 

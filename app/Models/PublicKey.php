@@ -16,6 +16,7 @@ class PublicKey extends Model
         'selector',
         'public_key',
         'metadata',
+        'verification_methods',
         'version',
     ];
 

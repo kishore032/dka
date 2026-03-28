@@ -3,7 +3,7 @@
 define('DKA_PATTERN', '/^\s*\s*v\s*=\s*DKA1\s*;\s*dka\s*=\s*([a-zA-Z0-9.]+)*/');
 
 /**
- * Get the DNS designation from the DNS for the target domain claimed by this DKA.
+ * Get the DNS designation from the DKA for the mail domain claimed by this DKA.
  * DNS data is returned as array of arrays.
     [
         [

@@ -82,9 +82,9 @@ class RawmailController extends Controller
         // ------------------------------------------------------------------
         // 6. Domain check (domain DKA mode only)
         // ------------------------------------------------------------------
-        $targetDomain = config('dka.target_domain');
-        if ($targetDomain !== '*' && $fromParsed->domain !== $targetDomain) {
-            Log::info('DKA: domain mismatch', ['from' => $fromParsed->domain, 'target' => $targetDomain]);
+        $mailDomain = config('dka.mail_domain');
+        if ($mailDomain !== '*' && $fromParsed->domain !== $mailDomain) {
+            Log::info('DKA: domain mismatch', ['from' => $fromParsed->domain, 'target' => $mailDomain]);
             return response('Domain not served', 403);
         }
 
