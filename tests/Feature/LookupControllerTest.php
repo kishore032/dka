@@ -248,34 +248,6 @@ class LookupControllerTest extends TestCase
     }
 
     // =========================================================================
-    // GET /api/v1/version
-    // =========================================================================
-
-    #[Test]
-    public function version_returns_rdka_mode_when_target_domain_is_wildcard(): void
-    {
-        config(['dka.mail_domain' => '*', 'dka.version' => 1, 'dka.domain' => 'dka.example.com']);
-
-        $this->getJson('/api/v1/version')
-            ->assertStatus(200)
-            ->assertExactJson([
-                'dka_version' => 1,
-                'domain'      => 'dka.example.com',
-                'mode'        => 'rdka',
-            ]);
-    }
-
-    #[Test]
-    public function version_returns_dka_mode_when_target_domain_is_set(): void
-    {
-        config(['dka.mail_domain' => 'example.com', 'dka.version' => 1, 'dka.domain' => 'dka.example.com']);
-
-        $this->getJson('/api/v1/version')
-            ->assertStatus(200)
-            ->assertJsonFragment(['mode' => 'dka']);
-    }
-
-    // =========================================================================
     // GET /api/v1/apis
     // =========================================================================
 

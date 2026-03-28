@@ -5,14 +5,9 @@ use App\Http\Controllers\RawmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome', ['size' => 'md']);
+    return config('dka.mail_domain')=="*" ? view('welcome_rdka') : view('welcome');
 });
 
-foreach (['lg', 'md', 'sm'] as $size) {
-    Route::get("/{$size}", function () use ($size) {
-        return view('welcome', ['size' => $size]);
-    });
-}
 
 Route::post('/inbound', [RawmailController::class, 'receive']);
 

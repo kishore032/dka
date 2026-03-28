@@ -123,4 +123,18 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'debug_hide' => [
+    '_ENV' => [
+        'APP_KEY',
+        'DB_PASSWORD',
+        'DB_CONNECTION',
+        'MG_SIGNING_KEY',
+        'MAILGUN_API_KEY',
+    ],
+    '_SERVER' => [
+        'APP_KEY',
+        'DB_PASSWORD',
+    ],
+],
+
 ];

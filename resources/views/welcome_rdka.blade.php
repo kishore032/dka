@@ -24,8 +24,6 @@
 
         div { text-align: center; }
 
-        div { text-align: center; }
-
         .text-lg { font-size: 24pt; }
         .text-md { font-size: 18pt; }
         .text-sm { font-size: 14pt; }
@@ -35,19 +33,16 @@
     <div class="text-{{ $size ?? 'md' }}">{{ $text ?? '' }}</div>
     <img src="storage/dka.png" style="max-width:200px">
     <div class="text-lg">
-        Domain Key Authority
+        Root Domain Key Authority (rdka)
     </div>
     <br>
     <div class="text-md">
-            This website is configured locally to be the DKA of domain {{ config('dka.mail_domain') }}.
+            This website is configured locally to be the root DKA (rDKA).
     </div>
     <div class="text-sm">
         The domain's DNS designation for the DKA is <br>
         {{ config('dka.dns_canonical') . " IN TXT \"" . dns_text() . "\"" }}
-        The domain's DNS designation for the DKA is <br>
-        {{ config('dka.dns_canonical') . " IN TXT \"" . dns_text() . "\"" }}
     </div>
-    <br>
     <br>
     <div class="text-md">
         This website operates at {{ $_SERVER['HTTP_HOST']  }}

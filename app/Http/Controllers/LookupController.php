@@ -80,13 +80,9 @@ class LookupController extends Controller
 
     public function version(): JsonResponse
     {
-        $mailDomain = config('dka.mail_domain');
-        $mode         = ($mailDomain === '*') ? 'rdka' : 'dka';
-
         return response()->json([
             'dka_version' => config('dka.version'),
-            'domain'      => config('dka.domain'),
-            'mode'        => $mode,
+            'domain'      => config('dka.mail_domain')
         ]);
     }
 
