@@ -44,8 +44,6 @@
     <div class="text-sm">
         The domain's DNS designation for the DKA is <br>
         {{ config('dka.dns_canonical') . " IN TXT \"" . dns_text() . "\"" }}
-        The domain's DNS designation for the DKA is <br>
-        {{ config('dka.dns_canonical') . " IN TXT \"" . dns_text() . "\"" }}
     </div>
     <br>
     <br>
