@@ -43,38 +43,6 @@ class LookupController extends Controller
     }
 
     // -------------------------------------------------------------------------
-    // GET /api/v1/selectors?email={email_id}
-    // -------------------------------------------------------------------------
-
-    public function selectors(Request $request): JsonResponse
-    {
-        $email = strtolower(trim($request->query('email', '')));
-
-        if (!$email) {
-            return response()->json(['error' => 'email parameter is required'], 422);
-        }
-
-        $domainCheck = $this->checkEmailDomain($email);
-        if ($domainCheck) {
-            return $domainCheck;
-        }
-
-        $selectors = PublicKey::where('email_id', $email)
-            ->pluck('selector')
-            ->values()
-            ->all();
-
-        if (empty($selectors)) {
-            return response()->json(['error' => 'Not found'], 404);
-        }
-
-        return response()->json([
-            'email_id'  => $email,
-            'selectors' => $selectors,
-        ]);
-    }
-
-    // -------------------------------------------------------------------------
     // GET /api/v1/version
     // -------------------------------------------------------------------------
 
@@ -94,9 +62,8 @@ class LookupController extends Controller
     {
         return response()->json([
             'endpoints' => [
-                ['method' => 'GET', 'path' => '/api/v1/lookup',    'params' => ['email', 'selector?']],
-                ['method' => 'GET', 'path' => '/api/v1/selectors', 'params' => ['email']],
-                ['method' => 'GET', 'path' => '/api/v1/version',   'params' => []],
+                ['method' => 'GET', 'path' => '/api/v1/lookup',  'params' => ['email', 'selector?']],
+                ['method' => 'GET', 'path' => '/api/v1/version', 'params' => []],
                 ['method' => 'GET', 'path' => '/api/v1/apis',      'params' => []],
             ],
         ]);

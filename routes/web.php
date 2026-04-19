@@ -12,8 +12,7 @@ Route::get('/', function () {
 Route::post('/inbound', [RawmailController::class, 'receive']);
 
 Route::prefix('.well-known/dka')->group(function () {
-    Route::get('/lookup',    [LookupController::class, 'lookup']);
-    Route::get('/selectors', [LookupController::class, 'selectors']);
-    Route::get('/version',   [LookupController::class, 'version']);
+    Route::get('/lookup',  [LookupController::class, 'lookup']);
+    Route::get('/version', [LookupController::class, 'version']);
     Route::get('/apis',      [LookupController::class, 'apis']);
 });

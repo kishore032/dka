@@ -189,90 +189,30 @@ class LookupControllerTest extends TestCase
     }
 
     // =========================================================================
-    // GET /api/v1/selectors
-    // =========================================================================
-
-    #[Test]
-    public function selectors_returns_422_when_email_is_missing(): void
-    {
-        $this->getJson('/api/v1/selectors')
-            ->assertStatus(422)
-            ->assertJsonFragment(['error' => 'email parameter is required']);
-    }
-
-    #[Test]
-    public function selectors_returns_404_when_email_has_no_keys(): void
-    {
-        $this->getJson('/api/v1/selectors?email=nobody@example.com')
-            ->assertStatus(404);
-    }
-
-    #[Test]
-    public function selectors_lists_all_selectors_for_email(): void
-    {
-        $this->storeKey($this->email, 'default');
-        $this->storeKey($this->email, 'signing');
-        $this->storeKey($this->email, 'encrypt');
-
-        $response = $this->getJson('/api/v1/selectors?email=' . $this->email)
-            ->assertStatus(200)
-            ->assertJsonFragment(['email_id' => $this->email]);
-
-        $selectors = $response->json('selectors');
-        $this->assertContains('default', $selectors);
-        $this->assertContains('signing', $selectors);
-        $this->assertContains('encrypt', $selectors);
-        $this->assertCount(3, $selectors);
-    }
-
-    #[Test]
-    public function selectors_does_not_mix_across_email_addresses(): void
-    {
-        $this->storeKey($this->email, 'default');
-        $this->storeKey('bob@example.com', 'work');
-
-        $selectors = $this->getJson('/api/v1/selectors?email=' . $this->email)
-            ->json('selectors');
-
-        $this->assertContains('default', $selectors);
-        $this->assertNotContains('work', $selectors);
-    }
-
-    #[Test]
-    public function selectors_returns_403_for_email_outside_target_domain_in_dka_mode(): void
-    {
-        config(['dka.mail_domain' => 'allowed.com']);
-
-        $this->getJson('/api/v1/selectors?email=alice@other.com')
-            ->assertStatus(403);
-    }
-
-    // =========================================================================
     // GET /api/v1/apis
     // =========================================================================
 
     #[Test]
-    public function apis_returns_exactly_four_endpoints(): void
+    public function apis_returns_exactly_three_endpoints(): void
     {
         $endpoints = $this->getJson('/api/v1/apis')
             ->assertStatus(200)
             ->json('endpoints');
 
-        $this->assertCount(4, $endpoints);
+        $this->assertCount(3, $endpoints);
     }
 
     #[Test]
-    public function apis_returns_the_four_expected_paths(): void
+    public function apis_returns_the_three_expected_paths(): void
     {
         $paths = array_column(
             $this->getJson('/api/v1/apis')->json('endpoints'),
             'path'
         );
 
-        $this->assertContains('/api/v1/lookup',    $paths);
-        $this->assertContains('/api/v1/selectors', $paths);
-        $this->assertContains('/api/v1/version',   $paths);
-        $this->assertContains('/api/v1/apis',      $paths);
+        $this->assertContains('/api/v1/lookup',  $paths);
+        $this->assertContains('/api/v1/version', $paths);
+        $this->assertContains('/api/v1/apis',    $paths);
     }
 
     #[Test]
@@ -283,6 +223,7 @@ class LookupControllerTest extends TestCase
             'path'
         );
 
+        $this->assertNotContains('/api/v1/selectors', $paths);
         $this->assertNotContains('/api/v1/challenge', $paths);
         $this->assertNotContains('/api/v1/submit',    $paths);
     }
