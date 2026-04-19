@@ -9,16 +9,19 @@ use Illuminate\Http\Request;
 class LookupController extends Controller
 {
     // -------------------------------------------------------------------------
-    // GET /api/v1/lookup?email={email_id}[&selector={selector}]
+    // GET /api/v1/lookup?email_address={email_id}[&selector={selector}]
     // -------------------------------------------------------------------------
 
     public function lookup(Request $request): JsonResponse
     {
-        $email    = strtolower(trim($request->query('email', '')));
+        $email    = strtolower(trim($request->query('email_address', '')));
         $selector = strtolower(trim($request->query('selector', 'default')));
 
         if (!$email) {
-            return response()->json(['error' => 'email parameter is required'], 422);
+            return response()->json([
+                'error'   => 'invalid_request',
+                'message' => 'email_address parameter is required',
+            ], 400);
         }
 
         $domainCheck = $this->checkEmailDomain($email);
@@ -28,17 +31,22 @@ class LookupController extends Controller
 
         $row = PublicKey::findKey($email, $selector);
         if (!$row) {
-            return response()->json(['error' => 'Not found'], 404);
+            return response()->json([
+                'error'   => 'not_found',
+                'message' => 'No matching Public Key Record exists',
+            ], 404);
         }
 
         return response()->json([
-            'email_id'   => $row->email_id,
-            'selector'   => $row->selector,
-            'public_key' => $row->public_key,
+            'email_address'        => $row->email_id,
+            'selector'             => $row->selector,
+            'public_key'           => $row->public_key,
             'verification_methods' => json_decode($row->verification_methods ?? '[]'),
-            'metadata'   => json_decode($row->metadata ?? '{}'),
-            'version'    => $row->version,
-            'updated_at' => $row->updated_at?->toIso8601String(),
+            'metadata'             => json_decode($row->metadata ?? '{}'),
+            'version'              => $row->version,
+            'updated_at'           => $row->updated_at?->toIso8601String(),
+        ])->withHeaders([
+            'Cache-Control' => 'public, max-age=300',
         ]);
     }
 
@@ -62,9 +70,9 @@ class LookupController extends Controller
     {
         return response()->json([
             'endpoints' => [
-                ['method' => 'GET', 'path' => '/api/v1/lookup',  'params' => ['email', 'selector?']],
+                ['method' => 'GET', 'path' => '/api/v1/lookup',  'params' => ['email_address', 'selector?']],
                 ['method' => 'GET', 'path' => '/api/v1/version', 'params' => []],
-                ['method' => 'GET', 'path' => '/api/v1/apis',      'params' => []],
+                ['method' => 'GET', 'path' => '/api/v1/apis',    'params' => []],
             ],
         ]);
     }
@@ -86,7 +94,10 @@ class LookupController extends Controller
 
         $parsed = eparse($email);
         if (!$parsed || $parsed->domain !== $mailDomain) {
-            return response()->json(['error' => 'This DKA does not serve that domain'], 403);
+            return response()->json([
+                'error'   => 'domain_not_served',
+                'message' => 'This DKA does not serve that domain',
+            ], 403);
         }
 
         return null;

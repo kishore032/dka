@@ -22,11 +22,12 @@ use Tests\TestCase;
  *
  * Two-step flow:
  *   Step 1 — no active token → DKIM check → issue token, send to sender.
- *   Step 2 — active email token + command subject → parse JSON body → dispatch.
+ *   Step 2 — active email token → parse JSON body → dispatch based on fields.
  *
- * Both register and delete carry the token inside the JSON body:
- *   register body: {"token": "...", "public_key": "...", ...}
- *   delete body:   {"token": "..."}
+ * Step 2 routing is determined by the JSON payload:
+ *   register body: {"token": "...", "public_key": "..."}
+ *   delete body:   {"token": "...", "delete": true, "selector": "<optional>"}
+ *   conflict:      {"token": "...", "public_key": "...", "delete": true} → rejected
  */
 class RawmailControllerTest extends TestCase
 {
@@ -173,7 +174,7 @@ class RawmailControllerTest extends TestCase
     #[Test]
     public function it_stores_rawmail_record_on_valid_request(): void
     {
-        $this->controller->receive($this->makePost(['subject' => 'register']), true);
+        $this->controller->receive($this->makePost(['subject' => 'hello']), true);
 
         $this->assertEquals(1, Rawmail::count());
         $rawmail = Rawmail::first();
@@ -225,7 +226,8 @@ class RawmailControllerTest extends TestCase
     {
         $existing = $this->issueToken();
 
-        $this->controller->receive($this->makePost(), true);
+        // Body has no JSON with actionable fields → falls through to Step 1 (resend)
+        $this->controller->receive($this->makePost(['body-plain' => '']), true);
 
         // Original token unchanged, but re-sent
         $this->assertEquals($existing, $this->tokens->get($this->senderEmail)['token']);
@@ -233,25 +235,22 @@ class RawmailControllerTest extends TestCase
     }
 
     #[Test]
-    public function step1_is_triggered_for_register_subject_when_no_token_active(): void
+    public function step1_is_triggered_when_no_token_is_active(): void
     {
-        $this->controller->receive($this->makePost(['subject' => 'register']), true);
+        $this->controller->receive($this->makePost(), true);
 
-        // No token in Redis means this was treated as a challenge, not a command
         $this->assertTrue($this->tokens->exists($this->senderEmail));
         $this->assertEquals(0, PublicKey::count());
     }
 
     #[Test]
-    public function step1_is_triggered_for_delete_subject_when_no_token_active(): void
+    public function step1_is_triggered_even_for_register_subject_when_no_token_active(): void
     {
-        $this->storeKey($this->senderEmail, 'default');
+        $this->controller->receive($this->makePost(['subject' => 'register']), true);
 
-        $this->controller->receive($this->makePost(['subject' => 'delete']), true);
-
-        // Key still exists — was treated as challenge
-        $this->assertNotNull(PublicKey::findKey($this->senderEmail, 'default'));
+        // No token in Redis means no step 2 was attempted
         $this->assertTrue($this->tokens->exists($this->senderEmail));
+        $this->assertEquals(0, PublicKey::count());
     }
 
     // =========================================================================
@@ -263,7 +262,7 @@ class RawmailControllerTest extends TestCase
     {
         $token = $this->issueToken();
         $body  = json_encode(['token' => $token, 'public_key' => 'bmV3S2V5']);
-        $post  = $this->makePost(['subject' => 'register', 'body-plain' => $body]);
+        $post  = $this->makePost(['body-plain' => $body]);
 
         $this->controller->receive($post, true);
 
@@ -275,7 +274,7 @@ class RawmailControllerTest extends TestCase
     public function step2_register_sets_version_1_for_new_key(): void
     {
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'register', 'body-plain' => json_encode(['token' => $token, 'public_key' => 'dGVzdA=='])]);
+        $post  = $this->makePost(['body-plain' => json_encode(['token' => $token, 'public_key' => 'dGVzdA=='])]);
 
         $this->controller->receive($post, true);
 
@@ -287,7 +286,7 @@ class RawmailControllerTest extends TestCase
     {
         $this->storeKey($this->senderEmail, 'default', 'b2xkS2V5');
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'register', 'body-plain' => json_encode([
+        $post  = $this->makePost(['body-plain' => json_encode([
             'token' => $token, 'public_key' => 'bmV3S2V5', 'selector' => 'default',
         ])]);
 
@@ -302,7 +301,7 @@ class RawmailControllerTest extends TestCase
     public function step2_register_uses_selector_from_json(): void
     {
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'register', 'body-plain' => json_encode([
+        $post  = $this->makePost(['body-plain' => json_encode([
             'token' => $token, 'public_key' => 'dGVzdA==', 'selector' => 'signing',
         ])]);
 
@@ -315,7 +314,7 @@ class RawmailControllerTest extends TestCase
     public function step2_register_sends_success_email_verbose(): void
     {
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'register', 'body-plain' => json_encode(['token' => $token, 'public_key' => 'dGVzdA=='])]);
+        $post  = $this->makePost(['body-plain' => json_encode(['token' => $token, 'public_key' => 'dGVzdA=='])]);
 
         $this->controller->receive($post, true);
 
@@ -326,7 +325,7 @@ class RawmailControllerTest extends TestCase
     public function step2_register_fails_with_wrong_token_and_keeps_token(): void
     {
         $this->issueToken();
-        $post = $this->makePost(['subject' => 'register', 'body-plain' => json_encode([
+        $post = $this->makePost(['body-plain' => json_encode([
             'token' => 'wrongtoken', 'public_key' => 'dGVzdA==',
         ])]);
 
@@ -338,22 +337,38 @@ class RawmailControllerTest extends TestCase
     }
 
     #[Test]
-    public function step2_register_fails_when_body_has_no_json(): void
+    public function no_json_in_body_with_active_token_falls_back_to_challenge_resend(): void
     {
-        $this->issueToken();
-        $post = $this->makePost(['subject' => 'register', 'body-plain' => 'not json at all']);
+        $existing = $this->issueToken();
+        $post     = $this->makePost(['body-plain' => 'not json at all']);
 
         $this->controller->receive($post, true);
 
+        // No actionable JSON fields → treated as Step 1 → token is re-sent
         $this->assertEquals(0, PublicKey::count());
-        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
+        $this->assertEquals($existing, $this->tokens->get($this->senderEmail)['token']);
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Token'));
     }
 
     #[Test]
     public function step2_register_parses_json_after_blank_lines(): void
     {
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'register', 'body-plain' => "\n\n" . json_encode(['token' => $token, 'public_key' => 'dGVzdA=='])]);
+        $post  = $this->makePost(['body-plain' => "\n\n" . json_encode(['token' => $token, 'public_key' => 'dGVzdA=='])]);
+
+        $this->controller->receive($post, true);
+
+        $this->assertEquals(1, PublicKey::count());
+    }
+
+    #[Test]
+    public function step2_register_parses_json_after_quoted_reply_text(): void
+    {
+        // Simulates a reply email where the email client puts quoted text before the JSON.
+        $token = $this->issueToken();
+        $json  = json_encode(['token' => $token, 'public_key' => 'dGVzdA==']);
+        $body  = "> On April 19, the DKA wrote:\n> Your token is ...\n\n" . $json;
+        $post  = $this->makePost(['body-plain' => $body]);
 
         $this->controller->receive($post, true);
 
@@ -365,7 +380,7 @@ class RawmailControllerTest extends TestCase
     {
         $token = $this->issueToken();
         $json  = json_encode(['token' => $token, 'public_key' => 'dGVzdA==', 'selector' => 'sig']);
-        $post  = $this->makePost(['subject' => 'register', 'body-plain' => $json . "\n\n-- \nAlice"]);
+        $post  = $this->makePost(['body-plain' => $json . "\n\n-- \nAlice"]);
 
         $this->controller->receive($post, true);
 
@@ -381,7 +396,7 @@ class RawmailControllerTest extends TestCase
     {
         $this->storeKey($this->senderEmail, 'default');
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'delete', 'body-plain' => json_encode(['token' => $token])]);
+        $post  = $this->makePost(['body-plain' => json_encode(['token' => $token, 'delete' => true])]);
 
         $this->controller->receive($post, true);
 
@@ -394,7 +409,7 @@ class RawmailControllerTest extends TestCase
     {
         $this->storeKey($this->senderEmail, 'signing');
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'delete signing', 'body-plain' => json_encode(['token' => $token])]);
+        $post  = $this->makePost(['body-plain' => json_encode(['token' => $token, 'delete' => true, 'selector' => 'signing'])]);
 
         $this->controller->receive($post, true);
 
@@ -407,7 +422,7 @@ class RawmailControllerTest extends TestCase
         $this->storeKey($this->senderEmail, 'default');
         $this->storeKey($this->senderEmail, 'signing');
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'delete signing', 'body-plain' => json_encode(['token' => $token])]);
+        $post  = $this->makePost(['body-plain' => json_encode(['token' => $token, 'delete' => true, 'selector' => 'signing'])]);
 
         $this->controller->receive($post, true);
 
@@ -419,7 +434,7 @@ class RawmailControllerTest extends TestCase
     {
         $this->storeKey($this->senderEmail, 'default');
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'delete', 'body-plain' => json_encode(['token' => $token])]);
+        $post  = $this->makePost(['body-plain' => json_encode(['token' => $token, 'delete' => true])]);
 
         $this->controller->receive($post, true);
 
@@ -431,7 +446,7 @@ class RawmailControllerTest extends TestCase
     {
         $this->storeKey($this->senderEmail, 'default');
         $this->issueToken();
-        $post = $this->makePost(['subject' => 'delete', 'body-plain' => json_encode(['token' => 'wrongtoken'])]);
+        $post = $this->makePost(['body-plain' => json_encode(['token' => 'wrongtoken', 'delete' => true])]);
 
         $this->controller->receive($post, true);
 
@@ -443,7 +458,7 @@ class RawmailControllerTest extends TestCase
     public function step2_delete_sends_error_when_selector_not_found(): void
     {
         $token = $this->issueToken();
-        $post  = $this->makePost(['subject' => 'delete nosuchkey', 'body-plain' => json_encode(['token' => $token])]);
+        $post  = $this->makePost(['body-plain' => json_encode(['token' => $token, 'delete' => true, 'selector' => 'nosuchkey'])]);
 
         $this->controller->receive($post, true);
 
@@ -451,7 +466,48 @@ class RawmailControllerTest extends TestCase
     }
 
     // =========================================================================
-    // Unknown subject
+    // Step 2 — Conflict (public_key + delete: true)
+    // =========================================================================
+
+    #[Test]
+    public function step2_rejects_payload_with_both_public_key_and_delete_true(): void
+    {
+        $this->storeKey($this->senderEmail, 'default');
+        $token = $this->issueToken();
+        $post  = $this->makePost(['body-plain' => json_encode([
+            'token'      => $token,
+            'public_key' => 'dGVzdA==',
+            'delete'     => true,
+        ])]);
+
+        $this->controller->receive($post, true);
+
+        // Key must not be touched and token must survive
+        $this->assertNotNull(PublicKey::findKey($this->senderEmail, 'default'));
+        $this->assertTrue($this->tokens->exists($this->senderEmail));
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
+    }
+
+    // =========================================================================
+    // Step 2 — no actionable fields falls back to Step 1
+    // =========================================================================
+
+    #[Test]
+    public function json_with_only_token_field_falls_back_to_challenge_resend(): void
+    {
+        $existing = $this->issueToken();
+        // JSON has a token field but neither public_key nor delete:true
+        $post = $this->makePost(['body-plain' => json_encode(['token' => $existing])]);
+
+        $this->controller->receive($post, true);
+
+        // No actionable fields → Step 1 → resend token
+        $this->assertEquals($existing, $this->tokens->get($this->senderEmail)['token']);
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Token'));
+    }
+
+    // =========================================================================
+    // Unknown / unrelated email still treated as challenge
     // =========================================================================
 
     #[Test]
@@ -460,7 +516,7 @@ class RawmailControllerTest extends TestCase
         $result = $this->controller->receive($this->makePost(['subject' => 'hello world']), true);
 
         $this->assertEquals(200, $result->getStatusCode());
-        // Treated as challenge — token issued for valid DKIM
+        // No active token → treated as challenge
         $this->assertTrue($this->tokens->exists($this->senderEmail));
     }
 }

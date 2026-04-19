@@ -56,23 +56,33 @@ class LookupControllerTest extends TestCase
         ]);
     }
 
+    protected function lookupUrl(string $email, string $selector = null): string
+    {
+        $url = '/api/v1/lookup?email_address=' . urlencode($email);
+        if ($selector !== null) {
+            $url .= '&selector=' . urlencode($selector);
+        }
+        return $url;
+    }
+
     // =========================================================================
     // GET /api/v1/lookup
     // =========================================================================
 
     #[Test]
-    public function lookup_returns_422_when_email_is_missing(): void
+    public function lookup_returns_400_when_email_is_missing(): void
     {
         $this->getJson('/api/v1/lookup')
-            ->assertStatus(422)
-            ->assertJsonFragment(['error' => 'email parameter is required']);
+            ->assertStatus(400)
+            ->assertJsonFragment(['error' => 'invalid_request']);
     }
 
     #[Test]
     public function lookup_returns_404_when_email_has_no_keys(): void
     {
-        $this->getJson('/api/v1/lookup?email=nobody@example.com')
-            ->assertStatus(404);
+        $this->getJson($this->lookupUrl('nobody@example.com'))
+            ->assertStatus(404)
+            ->assertJsonFragment(['error' => 'not_found']);
     }
 
     #[Test]
@@ -80,11 +90,11 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'default');
 
-        $this->getJson('/api/v1/lookup?email=' . $this->email)
+        $this->getJson($this->lookupUrl($this->email))
             ->assertStatus(200)
             ->assertJsonFragment([
-                'email_id' => $this->email,
-                'selector' => 'default',
+                'email_address' => $this->email,
+                'selector'      => 'default',
             ]);
     }
 
@@ -93,7 +103,7 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'signing');
 
-        $this->getJson('/api/v1/lookup?email=' . $this->email . '&selector=signing')
+        $this->getJson($this->lookupUrl($this->email, 'signing'))
             ->assertStatus(200)
             ->assertJsonFragment(['selector' => 'signing']);
     }
@@ -103,7 +113,7 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'default', 'bXlQdWJsaWNLZXk=');
 
-        $data = $this->getJson('/api/v1/lookup?email=' . $this->email)
+        $data = $this->getJson($this->lookupUrl($this->email))
             ->assertStatus(200)
             ->json();
 
@@ -115,7 +125,7 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'default');
 
-        $data = $this->getJson('/api/v1/lookup?email=' . $this->email)
+        $data = $this->getJson($this->lookupUrl($this->email))
             ->assertStatus(200)
             ->json();
 
@@ -127,7 +137,7 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'default', 'dGVzdA==', [], 3);
 
-        $data = $this->getJson('/api/v1/lookup?email=' . $this->email)
+        $data = $this->getJson($this->lookupUrl($this->email))
             ->assertStatus(200)
             ->json();
 
@@ -139,7 +149,7 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'default', 'dGVzdA==', ['alg' => 'ed25519', 'use' => 'sig']);
 
-        $meta = $this->getJson('/api/v1/lookup?email=' . $this->email)
+        $meta = $this->getJson($this->lookupUrl($this->email))
             ->assertStatus(200)
             ->json('metadata');
 
@@ -152,8 +162,9 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'default');
 
-        $this->getJson('/api/v1/lookup?email=' . $this->email . '&selector=nosuchselector')
-            ->assertStatus(404);
+        $this->getJson($this->lookupUrl($this->email, 'nosuchselector'))
+            ->assertStatus(404)
+            ->assertJsonFragment(['error' => 'not_found']);
     }
 
     #[Test]
@@ -161,9 +172,9 @@ class LookupControllerTest extends TestCase
     {
         config(['dka.mail_domain' => 'allowed.com']);
 
-        $this->getJson('/api/v1/lookup?email=alice@other.com')
+        $this->getJson($this->lookupUrl('alice@other.com'))
             ->assertStatus(403)
-            ->assertJsonFragment(['error' => 'This DKA does not serve that domain']);
+            ->assertJsonFragment(['error' => 'domain_not_served']);
     }
 
     #[Test]
@@ -172,7 +183,7 @@ class LookupControllerTest extends TestCase
         config(['dka.mail_domain' => '*']);
         $this->storeKey('alice@any-domain.io', 'default');
 
-        $this->getJson('/api/v1/lookup?email=alice@any-domain.io')
+        $this->getJson($this->lookupUrl('alice@any-domain.io'))
             ->assertStatus(200);
     }
 
@@ -181,11 +192,21 @@ class LookupControllerTest extends TestCase
     {
         $this->storeKey($this->email, 'default');
 
-        $data = $this->getJson('/api/v1/lookup?email=' . $this->email)
+        $data = $this->getJson($this->lookupUrl($this->email))
             ->assertStatus(200)
             ->json();
 
         $this->assertNotNull($data['updated_at']);
+    }
+
+    #[Test]
+    public function lookup_response_includes_cache_control_header(): void
+    {
+        $this->storeKey($this->email, 'default');
+
+        $this->getJson($this->lookupUrl($this->email))
+            ->assertStatus(200)
+            ->assertHeader('Cache-Control');
     }
 
     // =========================================================================

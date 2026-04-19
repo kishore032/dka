@@ -21,7 +21,12 @@ class RawmailController extends Controller
      * Receive and process a Mailgun inbound webhook.
      *
      * Step 1 (challenge): any email with no active token → DKIM check → issue token.
-     * Step 2 (command):   email with active token + command subject → parse JSON body → dispatch.
+     * Step 2 (command):   email with active token → parse JSON body → dispatch.
+     *
+     * Step 2 routing is determined entirely by the JSON payload:
+     *   - "delete": true (no public_key)  → delete
+     *   - "public_key" (no "delete": true) → register
+     *   - both fields present             → rejected (conflict)
      *
      * In production (in_test_mode=false) reads directly from $_POST.
      * In test mode callers supply a $post array in the same shape.
@@ -127,45 +132,47 @@ class RawmailController extends Controller
         // ------------------------------------------------------------------
         // 10. Route: Step 1 (challenge) vs Step 2 (command)
         //
-        //     Step 2 is triggered when:
-        //       - An email-channel token is active in Redis for this email_id
-        //       - AND the subject is 'register' or 'delete [selector]'
-        //     Everything else is treated as Step 1 (challenge).
+        //     Step 2 is triggered when ALL of the following are true:
+        //       - An email-channel token is active in Redis for this sender
+        //       - The body contains parseable JSON
+        //       - That JSON contains "public_key" or "delete": true
+        //
+        //     Within Step 2, routing is determined by the JSON payload:
+        //       - "delete": true (no public_key)   → delete operation
+        //       - "public_key" (no "delete": true)  → register operation
+        //       - both fields present               → rejected (conflict)
+        //
+        //     Everything else falls through to Step 1 (challenge / resend).
         // ------------------------------------------------------------------
-        $emailId      = $fromParsed->email;
-        $subjectNorm  = strtolower(trim((string) $subject));
-        $tokenData    = $this->tokens->get($emailId);
+        $emailId       = $fromParsed->email;
+        $tokenData     = $this->tokens->get($emailId);
         $hasEmailToken = $tokenData && ($tokenData['channel'] === 'email');
 
-        $isRegister = $subjectNorm === 'register';
-        $isDelete   = $subjectNorm === 'delete' || str_starts_with($subjectNorm, 'delete ');
+        $body         = $post['body-plain'] ?? $post['body'] ?? '';
+        $payload      = $this->parseJsonFromBody((string) $body);
 
-        if ($hasEmailToken && ($isRegister || $isDelete)) {
-            // Step 2 — parse JSON body and dispatch command
-            $body    = $post['body-plain'] ?? $post['body'] ?? '';
-            $payload = $this->parseJsonFromBody((string) $body);
+        $hasDelete    = $payload !== null && isset($payload['delete']) && $payload['delete'] === true;
+        $hasPublicKey = $payload !== null && isset($payload['public_key']) && $payload['public_key'] !== '';
+        $isStep2      = $hasEmailToken && ($hasDelete || $hasPublicKey);
 
-            if ($payload === null) {
+        if ($isStep2) {
+            // Step 2 — dispatch command based on JSON payload fields
+            if ($hasDelete && $hasPublicKey) {
+                // Conflict: spec requires rejection when both fields are present
                 if ($verbose) {
                     Mail::to($emailId)->send(new DkaMail(
                         $fromAddress,
-                        'DKA: ' . ucfirst($subjectNorm) . ' Failed',
-                        'Could not find valid JSON in the email body. The body must start with a JSON object.'
+                        'DKA: Command Failed',
+                        'A payload may not contain both "public_key" and "delete": true.'
                     ));
                 }
-                return response('OK', 200);
-            }
-
-            if ($isRegister) {
-                $this->dka->handleEmailRegister($emailId, $payload, $verbose, $fromAddress);
+            } elseif ($hasDelete) {
+                $this->dka->handleEmailDelete($emailId, $payload, $verbose, $fromAddress);
             } else {
-                $selector = $subjectNorm === 'delete'
-                    ? 'default'
-                    : strtolower(trim(substr($subjectNorm, 7)));
-                $this->dka->handleEmailDelete($emailId, $selector, $payload, $verbose, $fromAddress);
+                $this->dka->handleEmailRegister($emailId, $payload, $verbose, $fromAddress);
             }
         } else {
-            // Step 1 — issue a verification token if DKIM passes
+            // Step 1 — issue or resend a verification token if DKIM passes
             $this->dka->handleEmailChallenge($emailId, $dkimCheck, $verbose, $fromAddress);
         }
 
@@ -177,11 +184,11 @@ class RawmailController extends Controller
     // -------------------------------------------------------------------------
 
     /**
-     * Extract and decode a JSON object from an email body.
+     * Extract and decode the first JSON object from an email body.
      *
-     * The first non-blank character must be '{'. Extracts from the opening
-     * brace to its matching closing brace, ignoring any trailing content
-     * (e.g. email signatures) that follows.
+     * Scans for the first '{' anywhere in the body (reply emails may have
+     * quoted text before the JSON). Extracts from that opening brace to its
+     * matching closing brace, ignoring any trailing content (e.g. signatures).
      */
     private function parseJsonFromBody(string $body): ?array
     {
@@ -189,13 +196,9 @@ class RawmailController extends Controller
         $start = null;
 
         for ($i = 0; $i < $len; $i++) {
-            $c = $body[$i];
-            if ($c === '{') {
+            if ($body[$i] === '{') {
                 $start = $i;
                 break;
-            }
-            if ($c !== ' ' && $c !== "\n" && $c !== "\r" && $c !== "\t") {
-                return null;
             }
         }
 

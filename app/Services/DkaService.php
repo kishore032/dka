@@ -52,16 +52,7 @@ class DkaService
             $token = $existing['token'];
             $ttl   = $this->tokens->ttl($emailId) ?? config('dka.token_ttl');
 
-            $body = "Your DKA verification token:\n\n"
-                . "  {$token}\n\n"
-                . "This token expires in {$ttl} seconds.\n\n"
-                . "To register a public key, reply with:\n"
-                . "  Subject: register\n"
-                . "  Body (JSON): {\"token\": \"<token>\", \"public_key\": \"<base64>\", \"selector\": \"<optional>\", \"metadata\": {}}\n\n"
-                . "To delete a key, reply with:\n"
-                . "  Subject: delete [selector]\n"
-                . "  Body (JSON): {\"token\": \"<token>\"}\n";
-
+            $body = $this->tokenEmailBody($token, $ttl);
             $this->sendEmail($emailId, 'DKA: Your Verification Token', $body, $fromAddress);
             return;
         }
@@ -69,17 +60,7 @@ class DkaService
         $token = $this->tokens->create($emailId, 'email');
         $ttl   = config('dka.token_ttl');
 
-        $body = "Your DKA verification token:\n\n"
-            . "  {$token}\n\n"
-            . "This token expires in {$ttl} seconds.\n\n"
-            . "To register a public key, reply with:\n"
-            . "  Subject: register\n"
-            . "  Body (JSON): {\"token\": \"<token>\", \"public_key\": \"<base64>\", \"selector\": \"<optional>\", \"metadata\": {}}\n\n"
-            . "To delete a key, reply with:\n"
-            . "  Subject: delete [selector]\n"
-            . "  Body (JSON): {\"token\": \"<token>\"}\n";
-
-        $this->sendEmail($emailId, 'DKA: Your Verification Token', $body, $fromAddress);
+        $this->sendEmail($emailId, 'DKA: Your Verification Token', $this->tokenEmailBody($token, $ttl), $fromAddress);
     }
 
     // -------------------------------------------------------------------------
@@ -120,7 +101,8 @@ class DkaService
                 $this->sendEmail(
                     $emailId,
                     'DKA: Register Failed',
-                    "Invalid selector '{$selector}'. Must be lowercase alphanumeric (hyphens allowed), max 32 chars.",
+                    "Invalid selector '{$selector}'. Must start and end with a letter or digit, "
+                    . "may contain hyphens in the middle, maximum 63 characters.",
                     $fromAddress
                 );
             }
@@ -130,6 +112,13 @@ class DkaService
         if ($publicKey === '') {
             if ($verbose) {
                 $this->sendEmail($emailId, 'DKA: Register Failed', 'public_key is required.', $fromAddress);
+            }
+            return;
+        }
+
+        if (base64_decode($publicKey, true) === false) {
+            if ($verbose) {
+                $this->sendEmail($emailId, 'DKA: Register Failed', 'public_key must be valid base64.', $fromAddress);
             }
             return;
         }
@@ -146,8 +135,9 @@ class DkaService
                 'public_key' => $publicKey,
                 'metadata'   => $metaJson,
                 'version'    => $newVersion,
-                'verification_methods' => config('dka.DKIM_required') ? json_encode(['mailbox-control', 'dkim-pass']) :
-                    json_encode(['mailbox-control'])
+                'verification_methods' => config('dka.DKIM_required')
+                    ? json_encode(['mailbox-control', 'dkim-validation'])
+                    : json_encode(['mailbox-control']),
             ]);
             $message = "Selector '{$selector}' updated (version {$newVersion}).";
         } else {
@@ -157,8 +147,9 @@ class DkaService
                 'public_key' => $publicKey,
                 'metadata'   => $metaJson,
                 'version'    => 1,
-                'verification_methods' => config('dka.DKIM_required') ? json_encode(['mailbox-control', 'dkim-pass']) :
-                    json_encode(['mailbox-control'])
+                'verification_methods' => config('dka.DKIM_required')
+                    ? json_encode(['mailbox-control', 'dkim-validation'])
+                    : json_encode(['mailbox-control']),
             ]);
             $message = "Selector '{$selector}' registered.";
         }
@@ -177,18 +168,16 @@ class DkaService
     /**
      * Handle a Step 2 delete email.
      * Validates the token from the JSON payload, then deletes the key.
-     * Selector is derived from the subject line ('default' when omitted).
+     * Selector is taken from payload['selector'], defaulting to 'default'.
      * Token is consumed only on success.
      *
      * @param  string  $emailId     Normalised sender email address
-     * @param  string  $selector    Selector to delete ('default' when none given)
      * @param  array   $payload     Decoded JSON from the email body (must contain 'token')
      * @param  bool    $verbose     True if recipient was DKA_USERNAME (send response)
      * @param  string  $fromAddress DKA email address to send from
      */
     public function handleEmailDelete(
         string $emailId,
-        string $selector,
         array  $payload,
         bool   $verbose,
         string $fromAddress
@@ -201,6 +190,7 @@ class DkaService
             return;
         }
 
+        $selector = strtolower(trim($payload['selector'] ?? 'default'));
         $existing = PublicKey::findKey($emailId, $selector);
 
         if (!$existing) {
@@ -258,11 +248,29 @@ class DkaService
     }
 
     /**
-     * Validate selector format: lowercase alphanumeric (hyphens allowed), max 32 chars.
+     * Validate selector format per spec:
+     *   - Letters (a-z) and digits (0-9) only; hyphens allowed in the middle.
+     *   - Must start and end with a letter or digit.
+     *   - Maximum 63 characters.
      */
     private function isValidSelector(string $selector): bool
     {
-        return (bool) preg_match('/^[a-z0-9][a-z0-9-]{0,31}$/', $selector);
+        return (bool) preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $selector);
+    }
+
+    /**
+     * Build the body of the verification token email.
+     */
+    private function tokenEmailBody(string $token, int $ttl): string
+    {
+        return "Your DKA verification token:\n\n"
+            . "  {$token}\n\n"
+            . "This token expires in {$ttl} seconds.\n\n"
+            . "To register a public key, reply with a JSON body:\n"
+            . "  {\"token\": \"<token>\", \"public_key\": \"<base64>\","
+            . " \"selector\": \"<optional>\", \"metadata\": {}}\n\n"
+            . "To delete a key, reply with a JSON body:\n"
+            . "  {\"token\": \"<token>\", \"delete\": true, \"selector\": \"<optional>\"}\n";
     }
 
     /**

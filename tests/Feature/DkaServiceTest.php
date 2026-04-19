@@ -82,6 +82,14 @@ class DkaServiceTest extends TestCase
         ], $overrides);
     }
 
+    protected function deletePayload(array $overrides = []): array
+    {
+        return array_merge([
+            'token'  => '',   // callers should set this
+            'delete' => true,
+        ], $overrides);
+    }
+
     // =========================================================================
     // handleEmailChallenge — DKIM enforcement
     // =========================================================================
@@ -299,6 +307,45 @@ class DkaServiceTest extends TestCase
     }
 
     #[Test]
+    public function register_rejects_selector_with_trailing_hyphen(): void
+    {
+        $token = $this->issueToken();
+
+        $this->dka->handleEmailRegister($this->email, $this->registerPayload([
+            'token' => $token, 'selector' => 'mykey-',
+        ]), true, $this->fromAddress);
+
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
+        $this->assertEquals(0, PublicKey::count());
+    }
+
+    #[Test]
+    public function register_accepts_selector_up_to_63_characters(): void
+    {
+        $token    = $this->issueToken();
+        $selector = str_repeat('a', 63);
+
+        $this->dka->handleEmailRegister($this->email, $this->registerPayload([
+            'token' => $token, 'selector' => $selector,
+        ]), true, $this->fromAddress);
+
+        $this->assertNotNull(PublicKey::findKey($this->email, $selector));
+    }
+
+    #[Test]
+    public function register_rejects_selector_exceeding_63_characters(): void
+    {
+        $token = $this->issueToken();
+
+        $this->dka->handleEmailRegister($this->email, $this->registerPayload([
+            'token' => $token, 'selector' => str_repeat('a', 64),
+        ]), true, $this->fromAddress);
+
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
+        $this->assertEquals(0, PublicKey::count());
+    }
+
+    #[Test]
     public function register_rejects_missing_public_key(): void
     {
         $token = $this->issueToken();
@@ -306,6 +353,34 @@ class DkaServiceTest extends TestCase
         $this->dka->handleEmailRegister($this->email, ['token' => $token, 'selector' => 'default'], true, $this->fromAddress);
 
         Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
+    }
+
+    #[Test]
+    public function register_rejects_invalid_base64_public_key(): void
+    {
+        $token = $this->issueToken();
+
+        $this->dka->handleEmailRegister($this->email, $this->registerPayload([
+            'token'      => $token,
+            'public_key' => 'not valid base64!!!',
+        ]), true, $this->fromAddress);
+
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
+        $this->assertEquals(0, PublicKey::count());
+        $this->assertTrue($this->tokens->exists($this->email)); // token survives on validation failure
+    }
+
+    #[Test]
+    public function register_accepts_valid_base64_public_key(): void
+    {
+        $token = $this->issueToken();
+
+        $this->dka->handleEmailRegister($this->email, $this->registerPayload([
+            'token'      => $token,
+            'public_key' => base64_encode('some raw key bytes'),
+        ]), true, $this->fromAddress);
+
+        $this->assertEquals(1, PublicKey::count());
     }
 
     // =========================================================================
@@ -344,7 +419,7 @@ class DkaServiceTest extends TestCase
         $this->storeKey($this->email, 'default');
         $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'default', ['token' => 'wrongvalue'], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => 'wrongvalue']), true, $this->fromAddress);
 
         Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
         $this->assertNotNull(PublicKey::findKey($this->email, 'default'));
@@ -356,7 +431,7 @@ class DkaServiceTest extends TestCase
     {
         $this->storeKey($this->email, 'default');
 
-        $this->dka->handleEmailDelete($this->email, 'default', ['token' => 'any'], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => 'any']), true, $this->fromAddress);
 
         Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
         $this->assertNotNull(PublicKey::findKey($this->email, 'default'));
@@ -372,7 +447,19 @@ class DkaServiceTest extends TestCase
         $this->storeKey($this->email, 'default');
         $token = $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'default', ['token' => $token], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => $token]), true, $this->fromAddress);
+
+        $this->assertNull(PublicKey::findKey($this->email, 'default'));
+    }
+
+    #[Test]
+    public function delete_defaults_selector_to_default(): void
+    {
+        $this->storeKey($this->email, 'default');
+        $token = $this->issueToken();
+
+        // No 'selector' key in payload → defaults to 'default'
+        $this->dka->handleEmailDelete($this->email, ['token' => $token, 'delete' => true], true, $this->fromAddress);
 
         $this->assertNull(PublicKey::findKey($this->email, 'default'));
     }
@@ -383,7 +470,7 @@ class DkaServiceTest extends TestCase
         $this->storeKey($this->email, 'default');
         $token = $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'default', ['token' => $token], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => $token]), true, $this->fromAddress);
 
         $this->assertFalse($this->tokens->exists($this->email));
     }
@@ -395,7 +482,7 @@ class DkaServiceTest extends TestCase
         $this->storeKey($this->email, 'signing');
         $token = $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'signing', ['token' => $token], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => $token, 'selector' => 'signing']), true, $this->fromAddress);
 
         $this->assertNull(PublicKey::findKey($this->email, 'signing'));
         $this->assertNotNull(PublicKey::findKey($this->email, 'default'));
@@ -407,7 +494,7 @@ class DkaServiceTest extends TestCase
         $this->storeKey($this->email, 'default');
         $token = $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'default', ['token' => $token], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => $token]), true, $this->fromAddress);
 
         Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Successful'));
     }
@@ -418,7 +505,7 @@ class DkaServiceTest extends TestCase
         $this->storeKey($this->email, 'default');
         $token = $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'default', ['token' => $token], false, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => $token]), false, $this->fromAddress);
 
         Mail::assertNothingSent();
         $this->assertNull(PublicKey::findKey($this->email, 'default'));
@@ -429,7 +516,7 @@ class DkaServiceTest extends TestCase
     {
         $token = $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'nosuchkey', ['token' => $token], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => $token, 'selector' => 'nosuchkey']), true, $this->fromAddress);
 
         Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Failed'));
     }
@@ -440,7 +527,7 @@ class DkaServiceTest extends TestCase
         $this->storeKey('bob@example.com', 'default');
         $token = $this->issueToken();
 
-        $this->dka->handleEmailDelete($this->email, 'default', ['token' => $token], true, $this->fromAddress);
+        $this->dka->handleEmailDelete($this->email, $this->deletePayload(['token' => $token]), true, $this->fromAddress);
 
         $this->assertNotNull(PublicKey::findKey('bob@example.com', 'default'));
     }

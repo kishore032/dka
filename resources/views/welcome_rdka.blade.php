@@ -33,11 +33,11 @@
     <div class="text-{{ $size ?? 'md' }}">{{ $text ?? '' }}</div>
     <img src="storage/dka.png" style="max-width:200px">
     <div class="text-lg">
-        Root Domain Key Authority (rdka)
+        Fallback Domain Key Authority (fDKA)
     </div>
     <br>
     <div class="text-md">
-            This website is configured locally to be the root DKA (rDKA).
+            This website is configured locally to be the fallback DKA (fDKA).
     </div>
     <div class="text-sm">
         The domain's DNS designation for the DKA is <br>
