@@ -20,7 +20,7 @@ For more information on the DKA framework:
 
 - <a href="https://datatracker.ietf.org/doc/draft-swaminathan-dka-framework/" target="_blank">See the proposed IETF standards Internet Draft. </a>
 
-- <a href="https://keymail1.demo" target="_blank">See the DKA demo.</a>
+- <a href="https://keymail1.com/demo" target="_blank">See the DKA demo.</a>
 
 
 ## Requirement
@@ -75,4 +75,4 @@ The DKA software is open-source software licensed under the [MIT license](https:
 
 ## IPR License
 
-The DKA is covered by <a href="https://patents.google.com/patent/US12401508B2/"> US Patent US12401508B2 </a> and has been proposed as an IETF standard. It is offered royalty free under IETF's RAND-Z IPR licensing agreement for any implementation conforming to the proposed standard. See the <a href="https://datatracker.ietf.org/ipr/7256/"> IPR terms. </a> 
+The DKA is covered by <a href="https://patents.google.com/patent/US12401508B2/"> US Patent US12401508B2 </a> and has been proposed as an <a href="https://datatracker.ietf.org/doc/draft-swaminathan-dka-framework/" target="_blank"> IETF standard </a>. It is offered royalty free  for any implementation conforming to the proposed standard. See the <a href="https://datatracker.ietf.org/ipr/7256/"> IPR terms. </a> 
