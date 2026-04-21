@@ -59,11 +59,11 @@ When you add your DKA domain to Mailgun, Mailgun will provide you several DNS re
 
 ## Mailgun: Routing incoming mail to your DKA
 
-If your DNS records are set correctly, email sent to dka@dka.example.com will reach Mailgun. You need to set Mailgun to route it to your DKA. To do so, on Mailgun dashboard send/Receiving/Routes, set match_recipient("dka@dka.example.com") to forward to https://dka.example.com/inbound. 
+If your DNS records are set correctly, email sent to `dka@dka.example.com` will reach Mailgun. You need to set Mailgun to route it to your DKA. To do so, on Mailgun dashboard send/Receiving/Routes, set match_recipient(`dka@dka.example.com`) to forward to `dka.example.com/inbound`. 
 
 ## HTTPS Configuration for your DKA website
 
-Your DKA website (dka.example.com and www.dka.example.com) must be served over TLS. You'll typically use Letsencrypt to serve these websites over TLS. Also, dont forget to reboot your webserver.
+Your DKA website (`dka.example.com` and `www.dka.example.com`) must be served over TLS. You'll typically use Letsencrypt to serve these websites over TLS. Also, dont forget to reboot your webserver.
 
 ## Testing
 

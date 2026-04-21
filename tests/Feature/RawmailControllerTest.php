@@ -507,6 +507,50 @@ class RawmailControllerTest extends TestCase
     }
 
     // =========================================================================
+    // stripped-text takes precedence over body-plain (fDKA reply quote fix)
+    // =========================================================================
+
+    #[Test]
+    public function step2_uses_stripped_text_when_body_plain_contains_quoted_template_json(): void
+    {
+        // Simulates an fDKA reply where the email client quotes the original challenge
+        // email in body-plain. The challenge email contains template JSON with a
+        // literal "<base64>" placeholder, which would be mistaken for a public_key.
+        // Mailgun's stripped-text removes the quoted portion, leaving only the user's JSON.
+        $token = $this->issueToken();
+
+        $templateJson  = json_encode(['token' => '<token>', 'public_key' => '<base64>', 'selector' => '<optional>']);
+        $quotedOriginal = "> On April 19 the DKA server wrote:\n> {$templateJson}\n\n";
+        $userJson       = json_encode(['token' => $token, 'public_key' => 'dGVzdA==']);
+
+        $post = $this->makePost([
+            'stripped-text' => $userJson,          // Mailgun: only the user's new text
+            'body-plain'    => $quotedOriginal . $userJson, // full quoted thread
+        ]);
+
+        $this->controller->receive($post, true);
+
+        // Must register using the user's actual JSON, not the template
+        $this->assertEquals(1, PublicKey::count());
+        Mail::assertSent(DkaMail::class, fn ($m) => str_contains($m->emailSubject, 'Successful'));
+    }
+
+    #[Test]
+    public function step2_falls_back_to_body_plain_when_stripped_text_is_empty(): void
+    {
+        // When stripped-text is absent (non-reply email), body-plain is used.
+        $token = $this->issueToken();
+        $post  = $this->makePost([
+            'stripped-text' => '',
+            'body-plain'    => json_encode(['token' => $token, 'public_key' => 'dGVzdA==']),
+        ]);
+
+        $this->controller->receive($post, true);
+
+        $this->assertEquals(1, PublicKey::count());
+    }
+
+    // =========================================================================
     // Unknown / unrelated email still treated as challenge
     // =========================================================================
 

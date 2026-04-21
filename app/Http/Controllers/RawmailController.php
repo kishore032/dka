@@ -148,7 +148,11 @@ class RawmailController extends Controller
         $tokenData     = $this->tokens->get($emailId);
         $hasEmailToken = $tokenData && ($tokenData['channel'] === 'email');
 
-        $body         = $post['body-plain'] ?? $post['body'] ?? '';
+        // Use stripped-text (Mailgun removes quoted reply content) so that
+        // template JSON in the quoted challenge email is not mistaken for a
+        // Step 2 command. Fall back to body-plain for non-reply emails.
+        $strippedText = $post['stripped-text'] ?? '';
+        $body         = ($strippedText !== '') ? $strippedText : ($post['body-plain'] ?? $post['body'] ?? '');
         $payload      = $this->parseJsonFromBody((string) $body);
 
         $hasDelete    = $payload !== null && isset($payload['delete']) && $payload['delete'] === true;
