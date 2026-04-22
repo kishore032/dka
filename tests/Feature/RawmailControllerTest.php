@@ -536,6 +536,34 @@ class RawmailControllerTest extends TestCase
     }
 
     #[Test]
+    public function step2_register_succeeds_when_email_client_wraps_long_base64_key(): void
+    {
+        // Simulates an email client that hard-wraps lines at ~76 characters.
+        // The base64 public_key value is split with a literal newline mid-string,
+        // producing invalid JSON that json_decode rejects on the first pass.
+        // The controller should retry after stripping line breaks.
+        $token  = $this->issueToken();
+        $key    = 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVG'
+                . 'QUFPQ0FROEFNSUlCQ2dLQ0FFQTQ4amN0MXptNEd1';  // long but valid base64 overall
+
+        // Simulate line-wrapping: split the key value across two lines inside the JSON string
+        $halfway  = (int)(strlen($key) / 2);
+        $part1    = substr($key, 0, $halfway);
+        $part2    = substr($key, $halfway);
+        $wrappedJson = "{\n"
+            . "\"token\":\"$token\",\n"
+            . "\"public_key\":\"$part1\n$part2\",\n"
+            . "\"selector\":\"default\"\n"
+            . "}";
+
+        $post = $this->makePost(['body-plain' => $wrappedJson]);
+
+        $this->controller->receive($post, true);
+
+        $this->assertEquals(1, PublicKey::count());
+    }
+
+    #[Test]
     public function step2_falls_back_to_body_plain_when_stripped_text_is_empty(): void
     {
         // When stripped-text is absent (non-reply email), body-plain is used.

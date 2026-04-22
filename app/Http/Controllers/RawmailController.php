@@ -250,6 +250,17 @@ class RawmailController extends Controller
         $json    = substr($body, $start, $end - $start + 1);
         $decoded = json_decode($json, true);
 
+        // Email clients may wrap long lines (e.g. a base64 public key) by
+        // inserting literal newlines inside string values, which is invalid
+        // JSON. Real JSON newlines-in-strings are encoded as \n (two chars),
+        // so stripping literal line breaks from the candidate is safe.
+        if (!is_array($decoded)) {
+            $decoded = json_decode(str_replace(["\r\n", "\r", "\n"], '', $json), true);
+            if (is_array($decoded)) {
+                Log::info('DKA: JSON parsed after stripping line breaks (email client line-wrapping)');
+            }
+        }
+
         return is_array($decoded) ? $decoded : null;
     }
 }
