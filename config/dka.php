@@ -7,7 +7,7 @@ return [
     | DKA Identity
     |--------------------------------------------------------------------------
     */
-    'username'      => env('DKA_USERNAME', 'dka'),
+    'username'      => env('DKA_USERNAME', 'register'),
     'terse'         => env('DKA_TERSE', 'no-reply'),
     'domain'        => env('DKA_DOMAIN', 'dka.example.com'),
     'mail_domain' => env('DKA_MAIL_DOMAIN', '*'),
