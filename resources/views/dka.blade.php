@@ -65,7 +65,7 @@ pre { /* For code blocks */
 </style>
 </head>
 <center>
-<img src="storage/DKA2.png" style="max-width:120px; margin:-20px auto 0px auto">
+<img src="/DKA2.png" style="max-width:120px; margin:-20px auto 0px auto">
     <h1>
             Domain Key Authorities: DNS-Designated Public Keys for Email
     </h1>
