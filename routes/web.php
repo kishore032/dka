@@ -5,7 +5,7 @@ use App\Http\Controllers\RawmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return config('dka.mail_domain')=="*" ? view('welcome_rdka') : view('welcome');
+    return config('dka.mail_domain')=="*" ? view('dka') : view('welcome');
 });
 
 
@@ -16,3 +16,10 @@ Route::prefix('.well-known/dka')->group(function () {
     Route::get('/version', [LookupController::class, 'version']);
     Route::get('/apis',      [LookupController::class, 'apis']);
 });
+
+
+// Route::get('/dka', fn() => view('dka'));
+
+Route::get('/dka_old', fn() => view('dka_old'));
+
+Route::get('/dka-whitepaper', fn() => view('whitepaper'));
