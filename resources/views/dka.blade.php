@@ -118,8 +118,24 @@ The DKA Demo
     9. You should get the public key record you just registered. <br>
 </div>
 <br>
-{{-- <div class="text-md" style="text-align: left; margin-left: 6px">
-    2. Register a public key in Fallback DKA (fDKA)
+
+<div class="text-md" style="text-align: left; margin-left: 6px">
+    2. An Application Demo (end-to-end email encryption) <br>
+</div>
+
+<div style="text-align: left; margin-left: 20px" class="text-sm">
+    1. Register a second email id at keymail2.com. <br>
+    2. Send an email from your keymail2 id to your keymail1 id. Since you registered a public key for your keymail1 id, this email will go encrypted (look for lock sign). <br>
+    3. Send an email from your keymail1 id to keymail2 id. It will be unencrypted as your keymail2 id does not have a public key yet. <br>
+    4. Set up a public key for your keymail2 id as you did for keymail1. <br>
+    5. Now email you send from one keymail id to the other will be encrypted and signed (lock and fingerprint icons). <br>
+    {{-- 6. You can even send an encrypted message from keymail1 or keymail2 to your external email address of Step 2. <br> --}}
+    6. This demo is intended to show how applications can use the public keys in the DKA framework. <br>
+<br>
+</div>
+<br>
+<div class="text-md" style="text-align: left; margin-left: 6px">
+    3. Register a public key in Fallback DKA (fDKA)
 </div>
 
 <div style="text-align: left; margin-left: 20px" class="text-sm">
@@ -136,21 +152,7 @@ The DKA Demo
         &nbsp;&nbsp;https://dka.keyzero.org/.well-known/dka/lookup?email_address=your-email-address <br>
     8. You should get the public key record you just registered. <br>
 </div>
-<br> --}}
-<div class="text-md" style="text-align: left; margin-left: 6px">
-    2. An Application Demo (end-to-end email encryption) <br>
-</div>
-
-<div style="text-align: left; margin-left: 20px" class="text-sm">
-    1. Register a second email id at keymail2.com. <br>
-    2. Send an email from your keymail2 id to your keymail1 id. Since you registered a public key for your keymail1 id, this email will go encrypted (look for lock sign). <br>
-    3. Send an email from your keymail1 id to keymail2 id. It will be unencrypted as your keymail2 id does not have a public key yet. <br>
-    4. Set up a public key for your keymail2 id as you did for keymail1. <br>
-    5. Now email you send from one keymail id to the other will be encrypted and signed (lock and fingerprint icons). <br>
-    {{-- 6. You can even send an encrypted message from keymail1 or keymail2 to your external email address of Step 2. <br> --}}
-    6. This demo is intended to show how applications can use the public keys in the DKA framework. <br>
-<br> <br>
-</div>
+<br>
 
 
 
