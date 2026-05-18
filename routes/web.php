@@ -22,4 +22,4 @@ Route::prefix('.well-known/dka')->group(function () {
 
 Route::get('/dka_old', fn() => view('dka_old'));
 
-Route::get('/dka-whitepaper', fn() => view('whitepaper'));
+Route::get('/whitepaper', fn() => view('whitepaper'));

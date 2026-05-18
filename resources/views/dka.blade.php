@@ -87,7 +87,7 @@ pre { /* For code blocks */
 </p>
 
 <p>
-    Click <a href='https://dka.keyzero.org/dka-whitepaper/' target='_'>here </a> for the DKA whitepaper that includes
+    Click <a href='/whitepaper' target='_'>here </a> for the DKA whitepaper that includes
     framework bootstrapping solution.
 </p>
 
